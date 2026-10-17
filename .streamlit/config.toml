@@ -1,5 +1,5 @@
 [browser]
-# No usage telemetry: the app makes no outbound calls at all.
+# No usage telemetry. The only outbound call is to the Anthropic API.
 gatherUsageStats = false
 
 [server]

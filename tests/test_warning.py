@@ -4,9 +4,17 @@ from verifier.warning import BODY, STANDARD_WARNING, WarningChecker
 checker = WarningChecker()
 
 
-def statuses(text):
-    heading, body = checker.check(text)
+def statuses(text, bold="bold"):
+    heading, body = checker.check(text, bold)
     return heading.status, body.status
+
+
+def test_heading_not_bold_fails():
+    assert statuses(STANDARD_WARNING, "not_bold") == (FAIL, PASS)
+
+
+def test_heading_bold_unsure_goes_to_review():
+    assert statuses(STANDARD_WARNING, "unsure") == (REVIEW, PASS)
 
 
 def test_exact_warning_passes():
@@ -55,11 +63,6 @@ def test_single_character_ocr_misread_needs_review():
 
 def test_missing_warning_fails_both_checks():
     assert statuses("OLD TOM DISTILLERY 45% 750 mL") == (FAIL, FAIL)
-
-
-def test_bold_is_flagged_for_human_check():
-    heading, _ = checker.check(STANDARD_WARNING)
-    assert "Bold" in heading.reason
 
 
 def test_body_constant_is_the_statutory_text():

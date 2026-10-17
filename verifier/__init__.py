@@ -1,1 +1,1 @@
-"""Alcohol label verification: OCR plus field-by-field checks."""
+"""Alcohol label verification: an AI reader plus field-by-field checks."""

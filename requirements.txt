@@ -1,7 +1,5 @@
 streamlit>=1.50
-pytesseract>=0.3.10
-opencv-python-headless>=4.8
+anthropic>=1.0
 Pillow>=10.0
-numpy>=1.26
 rapidfuzz>=3.0
 pytest>=8.0

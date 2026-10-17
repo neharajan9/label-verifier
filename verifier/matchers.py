@@ -1,6 +1,6 @@
 """Field matching functions.
 
-Each function takes the value from the application form and the full OCR
+Each function takes the value from the application form and the full
 text from the label, and returns a FieldResult. They are plain functions so
 they are easy to test without any images.
 """

@@ -1,8 +1,8 @@
 """Government Health Warning check (27 CFR 16.21).
 
 The wording must be word-for-word and the heading "GOVERNMENT WARNING:"
-must be in capital letters. Bold type cannot be detected reliably from OCR
-text, so the result tells the agent to confirm that by eye.
+must be in capital letters and bold. Bold type is judged by the AI reader;
+if it is unsure, the agent is asked to confirm by eye.
 """
 import difflib
 import re
@@ -20,8 +20,8 @@ BODY = (
 )
 STANDARD_WARNING = f"{HEADING} {BODY}"
 
-# OCR on small print often misreads a character or two. If every changed word
-# is at least this similar to the expected word, we treat it as OCR noise and
+# Reading small print can misread a character or two. If every changed word
+# is at least this similar to the expected word, we treat it as a misread and
 # ask a human to confirm rather than failing the label.
 WORD_SIMILARITY = 70
 
@@ -33,17 +33,22 @@ def _clean(text: str) -> str:
 
 
 class WarningChecker:
-    def check(self, ocr_text: str) -> list[FieldResult]:
-        text = _clean(ocr_text)
-        heading = self._check_heading(text)
+    def check(self, label_text: str, heading_bold: str = "unsure") -> list[FieldResult]:
+        text = _clean(label_text)
+        heading = self._check_heading(text, heading_bold)
         body = self._check_body(text)
         return [heading, body]
 
-    def _check_heading(self, text: str) -> FieldResult:
+    def _check_heading(self, text: str, heading_bold: str) -> FieldResult:
         field = "Warning heading"
         if HEADING in text:
-            return FieldResult(field, HEADING, HEADING, PASS,
-                               "All caps confirmed. Bold type must be confirmed by eye.")
+            if heading_bold == "bold":
+                return FieldResult(field, HEADING, HEADING, PASS, "All caps and bold")
+            if heading_bold == "not_bold":
+                return FieldResult(field, HEADING, HEADING, FAIL,
+                                   "All caps, but the heading is not in bold type")
+            return FieldResult(field, HEADING, HEADING, REVIEW,
+                               "All caps. Could not tell if it is bold - please check by eye")
         found = re.search(r"government\s+warning\s*:?", text, re.I)
         if found:
             return FieldResult(field, HEADING, found.group(0), FAIL,
@@ -64,11 +69,11 @@ class WarningChecker:
         changes = self._word_changes(BODY, found)
         summary = "; ".join(self._describe(exp, got) for exp, got in changes[:3])
         # If every difference is a near-identical word ("machinery," vs
-        # "machinerv,") it is most likely OCR noise, so ask a human to look.
+        # "machinerv,") it is most likely a misread, so ask a human to look.
         # A real wording change ("should not drink" -> "may want to avoid") fails.
         if all(self._looks_like_ocr_noise(exp, got) for exp, got in changes):
             return FieldResult(field, BODY, found, REVIEW,
-                               f"Nearly exact - may be an OCR misread. Check: {summary}")
+                               f"Nearly exact - may be a misread. Check: {summary}")
         return FieldResult(field, BODY, found, FAIL, f"Wording differs: {summary}")
 
     @staticmethod

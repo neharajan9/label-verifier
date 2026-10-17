@@ -14,6 +14,7 @@ class LabelApplication:
     alcohol_content: str
     net_contents: str
     country_of_origin: str = ""   # only required for imports
+    bottler: str = ""             # bottler or producer name and address, checked if given
 
 
 @dataclass

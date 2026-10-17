@@ -3,3 +3,6 @@ __pycache__/
 .pytest_cache/
 .venv/
 .idea/
+.streamlit/secrets.toml
+.env
+docs/

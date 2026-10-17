@@ -1,16 +1,19 @@
 """Streamlit screen for the label verifier. All checking logic lives in verifier/."""
 import csv
 import io
+import os
 from pathlib import Path
 
 import streamlit as st
 
+from verifier.ai_reader import AiReader
 from verifier.models import FAIL, PASS, REVIEW, LabelApplication
+from verifier.safe_text import csv_cell, html_text, markdown_text
 from verifier.verifier import CSV_COLUMNS, LabelVerifier, VerificationReport, load_applications
 
 SAMPLES = Path(__file__).parent / "sample_labels"
 ICONS = {PASS: "✅", REVIEW: "⚠️", FAIL: "❌"}
-WORDS = {PASS: "Matches", REVIEW: "Check by eye", FAIL: "Does not match"}
+WORDS = {PASS: "Matches", REVIEW: "Check by eye", FAIL: "Likely does not match"}
 BATCH_WORDS = {PASS: "Passed", REVIEW: "Check by eye", FAIL: "Problems"}
 MAX_BATCH = 500
 
@@ -32,9 +35,18 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 
+def api_key() -> str:
+    """From Streamlit secrets (the hosted app) or an environment variable (local)."""
+    try:
+        key = st.secrets.get("ANTHROPIC_API_KEY", "")
+    except Exception:          # no secrets file
+        key = ""
+    return (key or os.environ.get("ANTHROPIC_API_KEY", "")).strip()
+
+
 @st.cache_resource
-def get_verifier() -> LabelVerifier:
-    return LabelVerifier()
+def get_verifier(key: str) -> LabelVerifier:
+    return LabelVerifier(AiReader(key))
 
 
 def show_overall(report: VerificationReport) -> None:
@@ -49,6 +61,14 @@ def show_overall(report: VerificationReport) -> None:
         st.error(f"❌ **Problems found** - see the red items below ({report.seconds:.1f} seconds)")
 
 
+def headline(report: VerificationReport) -> str:
+    """One-line summary used for the cues near the button."""
+    if report.error:
+        return "❌ Could not check this label"
+    return {PASS: "✅ All checks passed", REVIEW: "⚠️ Needs a quick look",
+            FAIL: "❌ Problems found"}[report.status]
+
+
 def show_results(report: VerificationReport) -> None:
     show_overall(report)
     for r in report.results:
@@ -59,13 +79,13 @@ def show_results(report: VerificationReport) -> None:
             f'<small>Expected: {_html(r.expected)}<br>Label: {_html(found)}<br>'
             f'{_html(r.reason)}</small></div>',
             unsafe_allow_html=True)
-    if report.ocr_text:
+    if report.label_text:
         with st.expander("Show all text read from the label"):
-            st.text(report.ocr_text)
+            st.text(report.label_text)
 
 
-def _html(text: str) -> str:
-    return text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+_html = html_text      # untrusted text inside HTML blocks
+_plain = markdown_text  # untrusted text where Streamlit reads Markdown
 
 
 # ---- Single label --------------------------------------------------------------
@@ -77,7 +97,7 @@ def single_label_tab() -> None:
     if st.button("Load an example label", type="secondary"):
         st.session_state.update(
             brand="OLD TOM DISTILLERY", class_type="Kentucky Straight Bourbon Whiskey",
-            abv="45% Alc./Vol. (90 Proof)", net="750 mL", country="",
+            abv="45% Alc./Vol. (90 Proof)", net="750 mL", country="", bottler="",
             example=(SAMPLES / "01_old_tom_bourbon_pass.png").read_bytes())
 
     left, right = st.columns(2, gap="large")
@@ -94,6 +114,8 @@ def single_label_tab() -> None:
         abv = st.text_input("Alcohol content", key="abv", placeholder="e.g. 45% Alc./Vol.")
         net = st.text_input("Net contents", key="net", placeholder="e.g. 750 mL")
         country = st.text_input("Country of origin (imports only)", key="country")
+        bottler = st.text_input("Bottler name and address (optional)", key="bottler",
+                                placeholder="e.g. Bottled by Old Tom Distillery, Bardstown, KY")
 
         if st.button("Check label", type="primary", width="stretch"):
             missing = [n for n, v in [("Brand name", brand), ("Class / type", class_type),
@@ -104,9 +126,17 @@ def single_label_tab() -> None:
             elif missing:
                 st.error("Please fill in: " + ", ".join(missing))
             else:
-                app = LabelApplication(brand, class_type, abv, net, country)
+                app = LabelApplication(brand, class_type, abv, net, country, bottler)
                 with st.spinner("Reading the label..."):
-                    st.session_state["single_report"] = get_verifier().verify(image, app)
+                    report = get_verifier(api_key()).verify(image, app)
+                st.session_state["single_report"] = report
+                st.toast(f"{headline(report)} - results are below", icon="⬇️")
+
+        # Cue right under the button, so the result is not missed at the bottom.
+        if "single_report" in st.session_state:
+            report = st.session_state["single_report"]
+            st.markdown(f'<div class="result-row {report.status}"><b>{headline(report)}</b>'
+                        f' - scroll down for details ⬇️</div>', unsafe_allow_html=True)
 
     if "single_report" in st.session_state:
         st.divider()
@@ -120,9 +150,9 @@ def batch_tab() -> None:
              "with a row for each image.")
     with st.expander("What should the CSV file look like?"):
         st.write("One row per label. The **filename** column must match the image file name. "
-                 "**country_of_origin** can be left blank.")
+                 "**country_of_origin** and **bottler** can be left blank.")
         template = ",".join(CSV_COLUMNS) + "\n" + \
-            "old_tom.png,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45%,750 mL,\n"
+            "old_tom.png,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45%,750 mL,,\n"
         st.code(template, language="text")
         st.download_button("Download blank template", template, "applications_template.csv")
         st.download_button("Download the example labels' CSV",
@@ -158,12 +188,15 @@ def batch_tab() -> None:
         return
 
     bar = st.progress(0, text="Starting...")
-    reports = get_verifier().verify_batch(
+    reports = get_verifier(api_key()).verify_batch(
         image_bytes, applications,
         on_progress=lambda done, total: bar.progress(done / total,
                                                      text=f"Checked {done} of {total} labels"))
     bar.empty()
     st.session_state["batch_reports"] = reports
+    problems = sum(r.status != PASS for r in reports)
+    st.toast(f"Checked {len(reports)} labels, {problems} need attention - results are below",
+             icon="⬇️")
     show_batch_results(reports)
 
 
@@ -185,7 +218,8 @@ def show_batch_results(reports: list[VerificationReport]) -> None:
     st.subheader("Details")
     order = {FAIL: 0, REVIEW: 1, PASS: 2}
     for r in sorted(reports, key=lambda r: (order[r.status], r.filename)):
-        with st.expander(f"{ICONS[r.status]} {r.filename}"):
+        # Filenames come from the user; show them as plain text, not markdown.
+        with st.expander(f"{ICONS[r.status]} {_plain(r.filename)}"):
             show_results(r)
 
 
@@ -194,10 +228,11 @@ def results_csv(reports: list[VerificationReport]) -> str:
     writer = csv.writer(out)
     writer.writerow(["filename", "overall", "field", "status", "application", "label", "reason"])
     for r in reports:
-        if r.error:
-            writer.writerow([r.filename, r.status, "", "", "", "", r.error])
-        for x in r.results:
-            writer.writerow([r.filename, r.status, x.field, x.status, x.expected, x.found, x.reason])
+        rows = [[r.filename, r.status, "", "", "", "", r.error]] if r.error else []
+        rows += [[r.filename, r.status, x.field, x.status, x.expected, x.found, x.reason]
+                 for x in r.results]
+        for row in rows:
+            writer.writerow([csv_cell(v) for v in row])
     return out.getvalue()
 
 
@@ -205,7 +240,14 @@ def results_csv(reports: list[VerificationReport]) -> str:
 
 st.title("🔍 Alcohol Label Verifier")
 st.caption("Compares a label image with its application and checks the Government Warning. "
-           "Images are processed in memory and never stored.")
+           "Labels are read by Claude AI. The app suggests a result; the reviewer makes "
+           "the final decision. This app does not save images or results.")
+if not api_key():
+    st.error("**The AI service is not set up.** Add ANTHROPIC_API_KEY to the app's secrets "
+             "(Streamlit: Settings, then Secrets) or set it as an environment variable, "
+             "then reload this page.")
+    st.stop()
+
 one, many = st.tabs(["Check one label", "Check many labels"])
 with one:
     single_label_tab()

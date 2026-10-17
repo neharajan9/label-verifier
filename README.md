@@ -2,7 +2,7 @@
 
 A web app that checks alcohol label images against their application data.
 
-**Live app:** `<add URL here>`
+**Live app:** `https://label-verifier-7qpf9j97k37uawks5etqch.streamlit.app/`
 
 ## Setup
 

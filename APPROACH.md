@@ -76,6 +76,13 @@ layers:
    links or images to the page. In the results CSV download, cells that
    start with = + - or @ are prefixed so Excel does not run them as formulas.
 
+7. Cross site protections. Photos shown on screen are copies re-saved by
+   Pillow, never the uploaded file, so a disguised non-image file cannot
+   reach the browser. Streamlit's XSRF and CORS protections are switched on
+   explicitly in .streamlit/config.toml, and uploads are capped at 10 MB.
+   Security headers such as a Content Security Policy cannot be set on
+   Streamlit Community Cloud. In production, Azure Front Door would add them.
+
 What remains: a cleverly worded label could still make Claude copy text
 wrongly, for example by claiming a warning is printed when it is not. That is
 why the label image is shown next to the results, and why a person makes the

@@ -3,7 +3,13 @@
 gatherUsageStats = false
 
 [server]
-maxUploadSize = 200
+maxUploadSize = 10   # MB per file, same as the app's own limit
+# Security settings. These are Streamlit's defaults, set here so they cannot
+# be turned off by accident. XSRF protection stops other sites from sending
+# uploads in a reviewer's name. CORS protection stops other sites from calling
+# this app's server from a browser.
+enableXsrfProtection = true
+enableCORS = true
 
 [theme]
 base = "light"

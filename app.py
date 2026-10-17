@@ -6,7 +6,7 @@ import os
 from pathlib import Path
 
 import streamlit as st
-from PIL import Image
+from PIL import Image, ImageOps
 
 from verifier.ai_reader import AiReader
 from verifier.models import FAIL, PASS, REVIEW, LabelApplication
@@ -128,6 +128,24 @@ def show_report(report: VerificationReport) -> None:
     st.caption("The app suggests a result. The reviewer makes the final decision.")
 
 
+@st.cache_data(max_entries=50, show_spinner=False)
+def clean_image(image_bytes: bytes, max_side: int = 1600) -> bytes | None:
+    """A re-saved copy of an uploaded photo, for showing on screen.
+
+    The browser only ever gets a JPEG made by Pillow, never the uploaded file
+    itself, so a disguised non-image file cannot reach the page. Returns None
+    if the file is not an image.
+    """
+    try:
+        image = ImageOps.exif_transpose(Image.open(io.BytesIO(image_bytes))).convert("RGB")
+        image.thumbnail((max_side, max_side))
+        out = io.BytesIO()
+        image.save(out, format="JPEG", quality=85)
+        return out.getvalue()
+    except Exception:
+        return None
+
+
 # ---- Single label --------------------------------------------------------------------
 
 FIELDS = ["brand", "class_type", "abv", "net", "country", "bottler"]
@@ -168,8 +186,12 @@ def single_label_tab() -> None:
                                   key=f"upload_{st.session_state.get('upload_round', 0)}")
         image = upload.getvalue() if upload else st.session_state.get("example")
         if image:
-            st.image(image, width="stretch")
-            st.caption("Hover over the photo and use the expand button to see it full size.")
+            shown = clean_image(image)
+            if shown:
+                st.image(shown, width="stretch")
+                st.caption("Hover over the photo and use the expand button to see it full size.")
+            else:
+                st.error("This file can't be shown. It may not be a real JPG or PNG image.")
 
     with right:
         result_area = st.container()   # the result goes here, at the top, beside the photo
@@ -225,18 +247,6 @@ def single_label_tab() -> None:
 
 
 # ---- Batch ---------------------------------------------------------------------------
-
-def thumbnail(image_bytes: bytes) -> bytes | None:
-    """A small copy of the label to show next to its result."""
-    try:
-        image = Image.open(io.BytesIO(image_bytes)).convert("RGB")
-        image.thumbnail((700, 700))
-        out = io.BytesIO()
-        image.save(out, format="JPEG", quality=80)
-        return out.getvalue()
-    except Exception:
-        return None
-
 
 def batch_tab() -> None:
     st.markdown('<p class="hint">Check many labels at once. Add all the label photos, plus '
@@ -309,7 +319,7 @@ def run_batch(images, csv_file, use_examples: bool) -> None:
         on_progress=lambda done, total: bar.progress(done / total,
                                                      text=f"Checked {done} of {total} labels"))
     bar.empty()
-    thumbs = {name: thumbnail(data) for name, data in image_bytes.items()}
+    thumbs = {name: clean_image(data, 700) for name, data in image_bytes.items()}
     st.session_state["batch"] = (reports, thumbs)
 
 

@@ -1,0 +1,8 @@
+filename,brand_name,class_type,alcohol_content,net_contents,country_of_origin
+01_old_tom_bourbon_pass.png,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45% Alc./Vol. (90 Proof),750 mL,
+02_stones_throw_case_difference_pass.png,Stone's Throw,London Dry Gin,47%,1000 mL,
+03_titlecase_warning_fail.png,River Bend,Straight Rye Whiskey,50%,750 mL,
+04_wrong_abv_fail.png,Harbor Light,Spiced Rum,45%,750 mL,
+05_altered_warning_fail.png,Blue Mesa,Blanco Tequila,40%,750 mL,
+06_imported_wine_pass.png,Chateau Lumiere,Bordeaux Red Wine,13.5%,750 mL,France
+07_tilted_with_glare.png,OLD TOM DISTILLERY,Kentucky Straight Bourbon Whiskey,45%,750 mL,

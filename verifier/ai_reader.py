@@ -109,10 +109,16 @@ class AiReader:
         except anthropic.RateLimitError as exc:
             raise ReadError("The AI service is busy or the spending limit was reached. "
                             "Please try again in a minute.") from exc
+        except anthropic.APITimeoutError as exc:
+            raise ReadError(f"The AI took longer than {TIMEOUT_SECONDS} seconds to read this "
+                            "label. Please press Check label again.") from exc
         except anthropic.APIConnectionError as exc:
             raise ReadError("Could not reach the AI service. Check the network "
                             "connection.") from exc
         except anthropic.APIStatusError as exc:
+            if "credit balance" in str(exc).lower():
+                raise ReadError("The AI account has no credit left. The app owner needs "
+                                "to add credit in the Anthropic Console under Billing.") from exc
             raise ReadError(f"The AI service returned an error ({exc.status_code}). "
                             "Please try again.") from exc
 

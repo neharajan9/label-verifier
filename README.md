@@ -43,8 +43,10 @@ Batch uploads
   CSV to download.
 
 Simple to use
-  Large text and buttons, three steps, plain words: Matches, Check by eye,
-  Likely does not match. A message near the button points to the results.
+  Large text and buttons, numbered steps, plain words: Matches, Check by eye,
+  Likely does not match. The result appears at the top, next to the label
+  photo, with the items that need attention listed first. The Check button
+  stays off until everything needed is filled in.
 
 Safe with untrusted labels
   Text printed on a label cannot instruct the AI. Labels that try are sent
@@ -108,7 +110,7 @@ RUN
 The app opens at http://localhost:8501
 Press Control and C in the terminal to stop it.
 
-To try it quickly, click "Load an example label" on the first tab, or tick
+To try it quickly, click "Try an example" on the first tab, or tick
 "Use the 7 example labels instead" on the batch tab.
 
 

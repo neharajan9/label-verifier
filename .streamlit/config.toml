@@ -1,0 +1,13 @@
+[browser]
+# No usage telemetry: the app makes no outbound calls at all.
+gatherUsageStats = false
+
+[server]
+maxUploadSize = 200
+
+[theme]
+base = "light"
+primaryColor = "#1f4e8c"
+
+[client]
+toolbarMode = "minimal"
